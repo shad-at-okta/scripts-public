@@ -40,7 +40,7 @@ function installSftd() {
 
 	echo "Install sftd"
 
-	sudo yum install scaleft-server-tools
+	sudo yum -y install scaleft-server-tools
 
 	echo "Add ssh-rsa key signing to sshd_config, required for OpenSSH 8.2+ compatibility"
 
