@@ -8,7 +8,7 @@ ENROLLMENT_TOKEN="<replace with your gateway token>"
 # This location is used to store 3rd party apt key/keyrings(s) in alignment with security best practices
 # prompting the apt-key add command deprecation
 
-KEYRING_LOC="/usr/local/share/keyrings/"
+KEYRING_LOC="/usr/share/keyrings/"
 
 function addScaleftRepo (){
 	echo "Retrieve information about new packages"
@@ -36,6 +36,8 @@ function addScaleftRepo (){
 
 	echo "Add the ScaleFT apt repo to your /etc/apt/sources.list.d/scaleft.list"
 
+	echo "deb [signed-by=${KEYRING_LOC}scaleft_deb_key.gpg] http://pkg.scaleft.com/deb/ focal main" | sudo tee -a /etc/apt/sources.list.d/scaleft.list
+
 	echo "deb [signed-by=${KEYRING_LOC}scaleft_deb_key.gpg] http://pkg.scaleft.com/deb/ linux main" | sudo tee -a /etc/apt/sources.list.d/scaleft.list
 
 	echo "Retrieve information about new packages"
@@ -59,79 +61,9 @@ function installSft_gateway() {
 
 	sftgwcfg=$(cat <<-EOF
 
-	# The setup token from Advanced Server Access. This is required for the gateway to start correctly.
-
-	# SetupToken: yoursetuptoken
-
-	
-
-	# The network address clients will be instructed to use to access this gateway.
-
-	# AccessAddress: "1.1.1.1"
-
-	# The network port clients will be instructed to use to access this gateway.
-
-	# AccessPort: 7234
-
-	
-
-	# The network address that the gateway will listen on.
-
-	# ListenAddress: "0.0.0.0"
-
-	# The network port that the gateway will listen on.
-
-	# ListenPort: 7234
-
-	
-
-	# The URL to an HTTP CONNECT proxy used for outbound network connectivity to
-
-	# Advanced Server Access. Alternatively, use the HTTPS_PROXY environment
-
-	# variable to configure this proxy. Default: none
-
-	# ForwardProxy: https://proxy.mycompany.example
-
-	
-
-	# Forces the gateway to use the bundled certificate store (instead of the OS certificate store)
-
-	# to secure HTTP requests with TLS. This also includes requests to the
-
-	# Advanced Server Access cloud service.
-
-	# To use the OS certificate store, set to false. Default: true
-
-	# TLSUseBundledCAs: true
-
-	
-
-	# Verbosity of the logs. info is the default and recommended.
-
-	# Possible values: debug, info, warn, error
-
-	# LogLevel: info
-
-	
-
-	# The directory where finalized session logs are stored.
-
-	# SessionLogDir: "/var/log/sft/sessions"
-
-	
-
-	# Controls how frequently to sign and flush logs for an active session
-
-	# Logs are flushed after exceeding either value. Valid time units for
-
-	# the flush interval are "ns", "us" (or "µs"), "ms", “s”, ”m”, "h".
-
-	# The max buffer size is in bytes.
-
-	# SessionLogFlushInterval: 10s
-
-	# SessionLogMaxBufferSize: 262144
+	RDP:
+        Enabled: true
+        DangerouslyIgnoreServerCertificates: true
 
 	EOF
 
@@ -186,15 +118,6 @@ function installSftClientTools() {
 	sudo apt-get install -qy scaleft-client-tools 
 }
 
-function addSsh-RsaSigning() {
-	echo "Add ssh-rsa key signing to sshd_config, required for OpenSSH 8.2+ compatibility"
-
-	echo "CASignatureAlgorithms ecdsa-sha2-nistp256,ecdsa-sha2-nistp384,ecdsa-sha2-nistp521,ssh-ed25519,rsa-sha2-512,rsa-sha2-256,ssh-rsa" | sudo tee -a /etc/ssh/sshd_config
-
-	sudo systemctl restart sshd
-
-}
-
 FLAG="/var/log/firstboot.flag"
 if [ ! -f $FLAG ];then
 
@@ -206,7 +129,7 @@ if [ ! -f $FLAG ];then
     addScaleftRepo
 	installSft_gateway
 	installSftd
-	addSsh-RsaSigning
-
+    installSftClientTools
+	
 fi
 
