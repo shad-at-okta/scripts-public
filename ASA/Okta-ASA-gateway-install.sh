@@ -3,7 +3,7 @@
 # Gateway Setup token
 GATEWAY_TOKEN="<replace with your gateway token>"
 # Project Enrollment token, to allow for SSH access to the gateway via ASA
-ENROLLMENT_TOKEN="<replace with your gateway token>"
+ENROLLMENT_TOKEN="<replace with your gateway project enrollement token>"
 # 3rd party APT key/keyring location
 # This location is used to store 3rd party apt key/keyrings(s) in alignment with security best practices
 # prompting the apt-key add command deprecation
