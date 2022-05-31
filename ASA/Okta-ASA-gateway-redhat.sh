@@ -79,7 +79,7 @@ if [ ! -f $FLAG ];then
 	echo "This is the first boot"
 
 	#the next line creates an empty flag file so the script won't run the next boot
-	touch $FLAG
+	sudo touch $FLAG
 
     addScaleftRepo
 	installSft_gateway
