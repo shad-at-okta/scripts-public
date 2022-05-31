@@ -126,10 +126,10 @@ if [ ! -f $FLAG ];then
 	#the next line creates an empty flag file so the script won't run the next boot
 	sudo touch $FLAG
 
-    addScaleftRepo
+	addScaleftRepo
 	installSft_gateway
 	installSftd
-    installSftClientTools
+	installSftClientTools
 	
 fi
 
