@@ -6,7 +6,7 @@ GATEWAY_TOKEN="<replace with your gateway token>"
 # Project Enrollment token, to allow for SSH access to the gateway via ASA
 ENROLLMENT_TOKEN="<replace with your gateway project enrollement token>"
 
-function addScaleftRepo (){
+function addScaleftRepo () {
 	echo "Ensure curl is installed"
 
 	sudo yum -y install curl

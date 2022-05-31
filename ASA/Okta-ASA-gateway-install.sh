@@ -10,7 +10,7 @@ ENROLLMENT_TOKEN="<replace with your gateway project enrollement token>"
 
 KEYRING_LOC="/usr/share/keyrings/"
 
-function addScaleftRepo (){
+function addScaleftRepo () {
 	echo "Retrieve information about new packages"
 
 	sudo apt-get update -q
