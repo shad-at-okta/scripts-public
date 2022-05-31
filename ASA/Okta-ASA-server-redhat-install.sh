@@ -42,12 +42,6 @@ function installSftd() {
 
 	sudo yum -y install scaleft-server-tools
 
-	echo "Add ssh-rsa key signing to sshd_config, required for OpenSSH 8.2+ compatibility"
-
-	echo "CASignatureAlgorithms ecdsa-sha2-nistp256,ecdsa-sha2-nistp384,ecdsa-sha2-nistp521,ssh-ed25519,rsa-sha2-512,rsa-sha2-256,ssh-rsa" | sudo tee -a /etc/ssh/sshd_config
-
-	sudo systemctl restart sshd
-
 }
 
 FLAG="/var/log/firstboot.flag"
