@@ -7,7 +7,7 @@ ENROLLMENT_TOKEN="<replace with your enrollment token>"
 # This location is used to store 3rd party apt key/keyrings(s) in alignment with security best practices
 # prompting the apt-key add command deprecation
 
-KEYRING_LOC="/usr/local/share/keyrings/"
+KEYRING_LOC="/usr/share/keyrings/"
 
 function installSftd() {
 
