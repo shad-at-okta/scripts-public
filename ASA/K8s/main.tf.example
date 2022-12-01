@@ -1,0 +1,35 @@
+terraform {
+  required_providers {
+    oktapam = {
+      source = "okta/oktapam"
+      version = "0.3.1"
+    }
+  }
+}
+
+provider "oktapam" {
+  # Authentication options
+  oktapam_key = "<service user api key>"
+  oktapam_secret = "<service user api secret>"
+  oktapam_team = "<asa team name>"
+
+}
+
+resource "oktapam_kubernetes_cluster" "local_minikube" {
+  auth_mechanism    = "OIDC_RSA2048"
+  key		 	= "localminikube"
+  labels		= { env = "demo", tier = "bronze" }
+}
+
+resource "oktapam_kubernetes_cluster_connection" "local_minikube" {
+  cluster_id         = oktapam_kubernetes_cluster.local_minikube.id
+  api_url            = "https://<output of minikube ip command>:8443"
+  public_certificate = file("~/.minikube/ca.crt")
+}
+
+resource "oktapam_kubernetes_cluster_group" "local_minikube" {
+  cluster_selector  = "env=demo"
+  group_name		= "<asa group name>"
+  claims		= { groups = "system:masters" }
+}
+
