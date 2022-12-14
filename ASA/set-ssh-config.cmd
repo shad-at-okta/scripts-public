@@ -1,6 +1,9 @@
+# This script creates a properly formated .ssh/config file to facilitate
+# native SSH command use of sft.exe for authentication to ASA protected servers.
+
 @echo off
 
-echo # To use ScaleFT proxycommand, add this configuration block to your $HOME/.ssh/config  >> %USERPROFILE%\.ssh\config
+echo # This match stanza allows SSH to leverage sft.exe for server name resolution and authentication.  >> %USERPROFILE%\.ssh\config
 echo Match exec "%USERPROFILE%\AppData\Local\Apps\ScaleFT\bin\sft.exe resolve -q  %%h" >> %USERPROFILE%\.ssh\config
 echo     ProxyCommand %USERPROFILE%\AppData\Local\Apps\ScaleFT\bin\sft.exe proxycommand  %%h >> %USERPROFILE%\.ssh\config
 echo     UserKnownHostsFile %USERPROFILE%\AppData\Local\ScaleFT\proxycommand_known_hosts >> %USERPROFILE%\.ssh\config
