@@ -9,7 +9,7 @@
 ::get 8.8 name for userprofile
 for %%i in ("%USERPROFILE%") do set USERPROFILE-SHORT=%%~si
 
-::get 8.3 name for ScaleFT Client Tootls if installed
+::get 8.3 name for ScaleFT Client Tools if installed
 if exist "C:\Program Files (x86)\ScaleFT\bin\sft.exe" (
 	for %%i in ("C:\Program Files (x86)\ScaleFT\bin\sft.exe") do set SFT-Path=%%~si
 	Echo Found system-wide installation of ScaleFT Client Tools.
