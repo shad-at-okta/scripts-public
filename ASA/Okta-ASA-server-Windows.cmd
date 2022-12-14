@@ -1,4 +1,4 @@
-# Project Enrollment token, to enroll the server in the associated ASA project
+:: Project Enrollment token, to enroll the server in the associated ASA project
 set enrollment_token=<replace with your enrollement token>
 set canonical_name=%COMPUTERNAME%
 
