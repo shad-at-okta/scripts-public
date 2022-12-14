@@ -1,5 +1,6 @@
 # This script creates a properly formated .ssh/config file to facilitate
 # native SSH command use of sft.exe for authentication to ASA protected servers.
+# No warranty expressed or implied, use at your own risk.
 
 @echo off
 #create the .ssh directory if it does not exist.
