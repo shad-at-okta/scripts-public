@@ -5,8 +5,6 @@
 :: suppress console output
 @echo off
 
-:: create the .ssh directory if it does not exist.
-mkdir "%USERPROFILE%\.ssh" 2> nul
 
 ::get 8.8 name for userprofile
 for %%i in (%USERPROFILE%) do set USERPROFILE-SHORT=%%~si
@@ -27,9 +25,11 @@ if exist "C:\Program Files (x86)\ScaleFT\bin\sft.exe" (
 )
 
 if defined SFT-Path (
-:: write Match stanza to .ssh/config
-echo # This Match stanza allows SSH to leverage sft.exe for server name resolution and authentication.  >> "%USERPROFILE%\.ssh\config"
-echo Match exec "%SFT-path% resolve -q  %%h" >> "%USERPROFILE%\.ssh\config"
-echo     ProxyCommand %SFT-Path% proxycommand  %%h >> "%USERPROFILE%\.ssh\config"
-echo     UserKnownHostsFile %USERPROFILE-SHORT%\AppData\Local\ScaleFT\proxycommand_known_hosts >> "%USERPROFILE%\.ssh\config"
+	:: create the .ssh directory if it does not exist.
+	mkdir "%USERPROFILE%\.ssh" 2> nul
+	:: write Match stanza to .ssh/config
+	echo # This Match stanza allows SSH to leverage sft.exe for server name resolution and authentication.  >> "%USERPROFILE%\.ssh\config"
+	echo Match exec "%SFT-path% resolve -q  %%h" >> "%USERPROFILE%\.ssh\config"
+	echo     ProxyCommand %SFT-Path% proxycommand  %%h >> "%USERPROFILE%\.ssh\config"
+	echo     UserKnownHostsFile %USERPROFILE-SHORT%\AppData\Local\ScaleFT\proxycommand_known_hosts >> "%USERPROFILE%\.ssh\config"
 )
