@@ -7,7 +7,7 @@ INSTALL_SERVER_TOOLS=true
 # an enrollment token for the server agent is required.
 # If using an enrollment token, uncomment the ENROLLMENT_TOKEN line below and replace 
 # the text between quotes with your project enrollment token
-#SERVER_ENROLLMENT_TOKEN="<replace with your gateway project enrollement token>"
+#SERVER_ENROLLMENT_TOKEN="<replace with your project enrollement token>"
 
 # To leverage ASA for machine to machine authentication, the ASA client tools are required.
 # To install the ASA client tools, uncomment the following line:
@@ -19,7 +19,7 @@ INSTALL_SERVER_TOOLS=true
 #INSTALL_GATEWAY=true
 # When installing ASA Gateway service, uncomment the following line and replace 
 # the text between quotes with your gateway setup token
-#GATEWAY_TOKEN="<replace with your gateway token>"
+#GATEWAY_TOKEN="<replace with your gateway setup token>"
 
 
 
