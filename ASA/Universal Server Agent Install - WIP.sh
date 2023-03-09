@@ -164,6 +164,10 @@ function createSftGwConfig(){
 	  Enabled: true
 	  DangerouslyIgnoreServerCertificates: true
 
+	LogFileNameFormats:
+  	  SSHRecording: "{{.Protocol}}~{{.StartTime}}~{{.TeamName}}~{{.ProjectName}}~{{.ServerName}}~{{.Username}}~"
+  	  RDPRecording: "{{.Protocol}}~{{.StartTime}}~{{.TeamName}}~{{.ProjectName}}~{{.ServerName}}~{{.Username}}~"
+
 	EOF	 
 	)
 	echo -e "$sftgwcfg" | sudo tee /etc/sft/sft-gatewayd.yaml
