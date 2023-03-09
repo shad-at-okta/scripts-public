@@ -152,10 +152,10 @@ function createSftGatewaySetupToken(){
 	fi
 }
 
-function createSftGwConfig(){
+function createSftGwConfigRDP(){
 	sudo mkdir -p /var/lib/sft-gatewayd
 	sftgwcfg=$(cat <<-EOF
-	Loglevel: debug
+	#Loglevel: debug
 
 	LDAP:
 	  StartTLS: false
@@ -173,6 +173,17 @@ function createSftGwConfig(){
 	echo -e "$sftgwcfg" | sudo tee /etc/sft/sft-gatewayd.yaml
 }
 
+function createSftGwConfig(){
+	sudo mkdir -p /var/lib/sft-gatewayd
+	sftgwcfg=$(cat <<-EOF
+	#Loglevel: debug
+
+	EOF	 
+	)
+	echo -e "$sftgwcfg" | sudo tee /etc/sft/sft-gatewayd.yaml
+}
+
+
 function installSftd(){
 	sudo $PACKAGE_MANAGER install scaleft-server-tools -qy
 }
@@ -181,10 +192,12 @@ function installSft(){
 	sudo $PACKAGE_MANAGER install scaleft-client-tools -qy
 }
 
-function installSft-Gatewayd(){
+function installSft-Gateway(){
 	if [[ "$DISTRIBUTION" == "rhel" && "$VERSION" == "8" ]] || [[ "$DISTRIBUTION" == "ubuntu" && ( "$VERSION" == "20.04" || "$VERSION" == "22.04" ) ]]; then
 		sudo $PACKAGE_MANAGER install scaleft-rdp-transcoder
-		createSftGwConfig
+		createSftGwConfigRDP
+	else
+		createSftdConfig
 	fi
 	sudo $PACKAGE_MANAGER install scaleft-gateway
 }
@@ -203,7 +216,7 @@ fi
 
 if [["$INSTALL_GATEWAY" == "true"]];then
 	createSftGatewaySetupToken
-	installSft-Gatewayd
+	installSft-Gateway
 	INSTALL_CLIENT_TOOLS="true"
 fi
 
