@@ -73,36 +73,38 @@ function getServerName(){
 function updatePackageManager(){
 	# Add Okta ASA/OPA repository to local package manager
 	case "$DISTRIBUTION" in
-	amazonlinux|rhel|centos|alma|fedora)
-		echo "Adding Okta repository to local package manager for Amazon Linux, RHEL, CentOS, Alma, or Fedora"
-		sudo rpm --import https://dist.scaleft.com/GPG-KEY-OktaPAM-2023
-		rpm_art=$(cat <<-EOF
-		[oktapam-stable]
-		name=Okta PAM Stable - $DISTRIBUTION $VERSION
-		baseurl=https://dist.scaleft.com/repos/rpm/stable/$DISTRIBUTION/$VERSION/$CPU_ARCH
-		gpgcheck=1
-		repo_gpgcheck=1
-		enabled=1
-		gpgkey=https://dist.scaleft.com/GPG-KEY-OktaPAM-2023
-		EOF
-		)
-		
-		echo -e "$rpm_art" | sudo tee /etc/yum.repos.d/oktapam-stable.repo
-		
-		sudo yum update -qy
-		
-		;;
-	ubuntu|debian)
-		echo "Adding Okta repository to local package manager for Ubuntu or Debian"
-		sudo apt-get update -qy
-		sudo apt-get install -qy curl gpg
-		curl -fsSL https://dist.scaleft.com/GPG-KEY-OktaPAM-2023 | gpg --dearmor | sudo tee /usr/share/keyrings/oktapam-2023-archive-keyring.gpg > /dev/null
-		echo "deb [signed-by=/usr/share/keyrings/oktapam-2023-archive-keyring.gpg] https://dist.scaleft.com/repos/deb $CODENAME okta" | sudo tee /etc/apt/sources.list.d/scaleft.list
-		sudo apt-get update -qy
-		;;
-	*)
-		echo "Unrecognized OS type: $DISTRIBUTION"
-		;;
+		amazonlinux|rhel|centos|alma|fedora)
+			PACKAGE_MANAGER="yum"
+			echo "Adding Okta repository to local package manager for Amazon Linux, RHEL, CentOS, Alma, or Fedora"
+			sudo rpm --import https://dist.scaleft.com/GPG-KEY-OktaPAM-2023
+			rpm_art=$(cat <<-EOF
+			[oktapam-stable]
+			name=Okta PAM Stable - $DISTRIBUTION $VERSION
+			baseurl=https://dist.scaleft.com/repos/rpm/stable/$DISTRIBUTION/$VERSION/$CPU_ARCH
+			gpgcheck=1
+			repo_gpgcheck=1
+			enabled=1
+			gpgkey=https://dist.scaleft.com/GPG-KEY-OktaPAM-2023
+			EOF
+			)
+			
+			echo -e "$rpm_art" | sudo tee /etc/yum.repos.d/oktapam-stable.repo
+			
+			sudo $PACKAGE_MANAGER update -qy
+			
+			;;
+		ubuntu|debian)
+			PACKAGE_MANAGER="apt-get"
+			echo "Adding Okta repository to local package manager for Ubuntu or Debian"
+			sudo $PACKAGE_MANAGER update -qy
+			sudo $PACKAGE_MANAGER install -qy curl gpg
+			curl -fsSL https://dist.scaleft.com/GPG-KEY-OktaPAM-2023 | gpg --dearmor | sudo tee /usr/share/keyrings/oktapam-2023-archive-keyring.gpg > /dev/null
+			echo "deb [signed-by=/usr/share/keyrings/oktapam-2023-archive-keyring.gpg] https://dist.scaleft.com/repos/deb $CODENAME okta" | sudo tee /etc/apt/sources.list.d/scaleft.list
+			sudo $PACKAGE_MANAGER update -qy
+			;;
+		*)
+			echo "Unrecognized OS type: $DISTRIBUTION"
+			;;
 	esac
 }
 
@@ -138,7 +140,7 @@ function createSftdEnrollmentToken(){
 	fi
 }
 
-function createSftGatewayDSetupToken(){
+function createSftGatewaySetupToken(){
 	if [ -z "$GATEWAY_TOKEN" ]; then
 		echo "Unable to create sft-gatewayd setup token. GATEWAY_TOKEN is not set or is empty"
 	then
@@ -150,14 +152,58 @@ function createSftGatewayDSetupToken(){
 	fi
 }
 
-function installSftd(){
+function createSftGwConfig(){
+	sudo mkdir -p /var/lib/sft-gatewayd
+	sftgwcfg=$(cat <<-EOF
+	Loglevel: debug
 
+	LDAP:
+	  StartTLS: false
+
+	RDP:
+	  Enabled: true
+	  DangerouslyIgnoreServerCertificates: true
+
+	EOF	 
+	)
+	echo -e "$sftgwcfg" | sudo tee /etc/sft/sft-gatewayd.yaml
+}
+
+function installSftd(){
+	sudo $PACKAGE_MANAGER install scaleft-server-tools -qy
 }
 
 function installSft(){
-
+	sudo $PACKAGE_MANAGER install scaleft-client-tools -qy
 }
 
 function installSft-Gatewayd(){
-
+	if [[ "$DISTRIBUTION" == "rhel" && "$VERSION" == "8" ]] || [[ "$DISTRIBUTION" == "ubuntu" && ( "$VERSION" == "20.04" || "$VERSION" == "22.04" ) ]]; then
+		sudo $PACKAGE_MANAGER install scaleft-rdp-transcoder
+		createSftGwConfig
+	fi
+	sudo $PACKAGE_MANAGER install scaleft-gateway
 }
+
+#main script body below
+
+getOsData
+updatePackageManager
+
+if [["$INSTALL_SERVER_TOOLS" == "true"]];then
+	getServerName
+	createSftdConfig
+	createSftdEnrollmentToken
+	installSftd
+fi
+
+if [["$INSTALL_GATEWAY" == "true"]];then
+	createSftGatewaySetupToken
+	installSft-Gatewayd
+	INSTALL_CLIENT_TOOLS="true"
+fi
+
+if [["$INSTALL_CLIENT_TOOLS" == "true"]];then
+	installSft
+fi
+
