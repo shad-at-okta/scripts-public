@@ -61,6 +61,7 @@ function getOsData(){
 	# Get CPU Architecture
 	CPU_ARCH=$(uname -m)
 
+	# Adjust variables to align with package distrubtion structure where necessary
 	case "$DISTRIBUTION" in
 		amzn)
 			DISTRIBUTION="amazonlinux"
@@ -89,9 +90,8 @@ function getServerName(){
 			echo "Unable to retrieve Name tag, using hostname for server name in ASA."
 			INSTANCE_NAME=$HOSTNAME	
 		fi
-		echo "Instance not hosted in AWS, using hostname for server name in ASA."
-		echo "Instance Name: $INSTANCE_NAME"
 	else
+		# Since this instance is not hosted in AWS, assume hostname is friendly.
 		INSTANCE_NAME=$HOSTNAME
 		echo "This host is not hosted in AWS"
 	fi
@@ -138,20 +138,20 @@ function updatePackageManager(){
 		freebsd)
 			#There is currenlty no pkg repo integration, so downloading the packages locally for installation
 
-			pkg_base_url="https://dist.scaleft.com/repos/$DISTRIBUTION/stable/$VERSION/$CPU_ARCH/"
+			PKG_BASE_URL="https://dist.scaleft.com/repos/$DISTRIBUTION/stable/$VERSION/$CPU_ARCH/"
 
 			# Use cURL to get the directory listing from the URL
-			response=$(curl -s $pkg_base_url)
+			RESPONSE=$(curl -s $PKG_BASE_URL)
 
-			# Use grep to extract the directories from the response
-			pkg_versions=$(echo "$response" | grep -o ">[0-9.]*<" | tr -d '<>' | sort -V)
+			# Use grep to extract the directories from the RESPONSE
+			PKG_VERSIONS=$(echo "$RESPONSE" | grep -o ">[0-9.]*<" | tr -d '<>' | sort -V)
 
 			# Get the highest version directory from the list
-			highest_version=$(echo "$pkg_versions" | tail -n1)
+			HIGH_VERSION=$(echo "$PKG_VERSIONS" | tail -n1)
 
-			curl -O "$pkg_base_url/$highest_version/scaleft-server-tools-$highest_version.pkg"
-			curl -O "$pkg_base_url/$highest_version/scaleft-client-tools-$highest_version.pkg"
-			curl -O "$pkg_base_url/$highest_version/scaleft-gateway-$highest_version.pkg"
+			curl -O "$PKG_BASE_URL/$HIGH_VERSION/scaleft-server-tools-$HIGH_VERSION.pkg"
+			curl -O "$PKG_BASE_URL/$HIGH_VERSION/scaleft-client-tools-$HIGH_VERSION.pkg"
+			curl -O "$PKG_BASE_URL/$HIGH_VERSION/scaleft-gateway-$HIGH_VERSION.pkg"
 			;;
 		*)
 			echo "Unrecognized OS type: $DISTRIBUTION"
@@ -242,7 +242,7 @@ function createSftGwConfig(){
 
 function installSftd(){
 	if [[ $DISTRIBUTION == "freebsd" ]];then
-		sudo pkg install -y ./scaleft-server-tools-$highest_version.pkg
+		sudo pkg install -y ./scaleft-server-tools-$HIGH_VERSION.pkg
 	else
 		sudo $PACKAGE_MANAGER install scaleft-server-tools -qy
 	fi
@@ -250,7 +250,7 @@ function installSftd(){
 
 function installSft(){
 	if [[ $DISTRIBUTION == "freebsd" ]];then
-		sudo pkg install -y ./scaleft-client-tools-$highest_version.pkg
+		sudo pkg install -y ./scaleft-client-tools-$HIGH_VERSION.pkg
 	else
 		sudo $PACKAGE_MANAGER install scaleft-client-tools -qy
 	fi
@@ -264,7 +264,7 @@ function installSft-Gateway(){
 		createSftdConfig
 	fi
 	if [[ $DISTRIBUTION == "freebsd" ]];then
-		sudo pkg install -y ./scaleft-gateway-$highest_version.pkg
+		sudo pkg install -y ./scaleft-gateway-$HIGH_VERSION.pkg
 	else
 		sudo $PACKAGE_MANAGER install scaleft-gateway
 	fi
