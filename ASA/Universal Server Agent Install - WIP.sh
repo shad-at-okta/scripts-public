@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash -x
 
 # To install the ASA server agent, uncomment the following line:
 INSTALL_SERVER_TOOLS=true
@@ -22,6 +22,23 @@ INSTALL_SERVER_TOOLS=true
 #GATEWAY_TOKEN="<replace with your gateway setup token>"
 
 
+function getVersionInteger(){
+# Check if the cut command is available
+	if which cut >/dev/null 2>&1; then
+		# Cut is available, use it to extract the integer part
+		VERSION=$(echo $VERSION | cut -d. -f1)
+	else
+	# Cut is not available, check if awk is available
+		if which awk >/dev/null 2>&1; then
+			# Awk is available, use it to extract the integer part
+			VERSION=$(echo $VERSION | awk -F. '{print $1}')
+		else
+			# Awk is not available, use sed to extract the integer part
+			VERSION=$(echo $VERSION | sed 's/\..*//')
+		fi
+	fi
+
+}
 
 function getOsData(){
 	# Get distribution, version, and code name
@@ -44,9 +61,20 @@ function getOsData(){
 	# Get CPU Architecture
 	CPU_ARCH=$(uname -m)
 
-	if [["$DISTRIBUTION" == "amzn"]]; then
-		DISTRIBUTION="amazonlinux"
-	fi
+	case "$DISTRIBUTION" in
+		amzn)
+			DISTRIBUTION="amazonlinux"
+			;;
+		rhel|sles)
+			getVersionInteger
+			;;
+		freebsd)
+			getVersionInteger
+			if [[ "$CPU_ARCH" == "x86_64" ]];then
+				CPU_ARCH="amd64"
+			fi
+			;;
+	esac
 }
 
 function getServerName(){
@@ -74,7 +102,11 @@ function updatePackageManager(){
 	# Add Okta ASA/OPA repository to local package manager
 	case "$DISTRIBUTION" in
 		amazonlinux|rhel|centos|alma|fedora)
-			PACKAGE_MANAGER="yum"
+			if which dnf >/dev/null 2>&1;then
+				PACKAGE_MANAGER="dnf"
+			else
+				PACKAGE_MANAGER="yum"
+			fi
 			echo "Adding Okta repository to local package manager for Amazon Linux, RHEL, CentOS, Alma, or Fedora"
 			sudo rpm --import https://dist.scaleft.com/GPG-KEY-OktaPAM-2023
 			rpm_art=$(cat <<-EOF
@@ -102,6 +134,25 @@ function updatePackageManager(){
 			echo "deb [signed-by=/usr/share/keyrings/oktapam-2023-archive-keyring.gpg] https://dist.scaleft.com/repos/deb $CODENAME okta" | sudo tee /etc/apt/sources.list.d/scaleft.list
 			sudo $PACKAGE_MANAGER update -qy
 			;;
+		
+		freebsd)
+			#There is currenlty no pkg repo integration, so downloading the packages locally for installation
+
+			pkg_base_url="https://dist.scaleft.com/repos/$DISTRIBUTION/stable/$VERSION/$CPU_ARCH/"
+
+			# Use cURL to get the directory listing from the URL
+			response=$(curl -s $pkg_base_url)
+
+			# Use grep to extract the directories from the response
+			pkg_versions=$(echo "$response" | grep -o ">[0-9.]*<" | tr -d '<>' | sort -V)
+
+			# Get the highest version directory from the list
+			highest_version=$(echo "$pkg_versions" | tail -n1)
+
+			curl -O "$pkg_base_url/$highest_version/scaleft-server-tools-$highest_version.pkg"
+			curl -O "$pkg_base_url/$highest_version/scaleft-client-tools-$highest_version.pkg"
+			curl -O "$pkg_base_url/$highest_version/scaleft-gateway-$highest_version.pkg"
+			;;
 		*)
 			echo "Unrecognized OS type: $DISTRIBUTION"
 			;;
@@ -122,7 +173,8 @@ function createSftdConfig() {
 	 
 	CanonicalName: "$INSTANCE_NAME"
 	 
-	EOF	 
+	EOF
+	
 	)
 
 	echo -e "$sftdcfg" | sudo tee /etc/sft/sftd.yaml
@@ -143,7 +195,7 @@ function createSftdEnrollmentToken(){
 function createSftGatewaySetupToken(){
 	if [ -z "$GATEWAY_TOKEN" ]; then
 		echo "Unable to create sft-gatewayd setup token. GATEWAY_TOKEN is not set or is empty"
-	then
+	else
 		echo "Add an enrollment token"
 
 		sudo mkdir -p /var/lib/sft-gatewayd
@@ -168,7 +220,8 @@ function createSftGwConfigRDP(){
   	  SSHRecording: "{{.Protocol}}~{{.StartTime}}~{{.TeamName}}~{{.ProjectName}}~{{.ServerName}}~{{.Username}}~"
   	  RDPRecording: "{{.Protocol}}~{{.StartTime}}~{{.TeamName}}~{{.ProjectName}}~{{.ServerName}}~{{.Username}}~"
 
-	EOF	 
+	EOF
+	
 	)
 	echo -e "$sftgwcfg" | sudo tee /etc/sft/sft-gatewayd.yaml
 }
@@ -177,19 +230,30 @@ function createSftGwConfig(){
 	sudo mkdir -p /var/lib/sft-gatewayd
 	sftgwcfg=$(cat <<-EOF
 	#Loglevel: debug
+	
+	LogFileNameFormats:
+		SSHRecording: "{{.Protocol}}~{{.StartTime}}~{{.TeamName}}~{{.ProjectName}}~{{.ServerName}}~{{.Username}}~"
+	
+	EOF
 
-	EOF	 
 	)
 	echo -e "$sftgwcfg" | sudo tee /etc/sft/sft-gatewayd.yaml
 }
 
-
 function installSftd(){
-	sudo $PACKAGE_MANAGER install scaleft-server-tools -qy
+	if [[ $DISTRIBUTION == "freebsd" ]];then
+		sudo pkg install -y ./scaleft-server-tools-$highest_version.pkg
+	else
+		sudo $PACKAGE_MANAGER install scaleft-server-tools -qy
+	fi
 }
 
 function installSft(){
-	sudo $PACKAGE_MANAGER install scaleft-client-tools -qy
+	if [[ $DISTRIBUTION == "freebsd" ]];then
+		sudo pkg install -y ./scaleft-client-tools-$highest_version.pkg
+	else
+		sudo $PACKAGE_MANAGER install scaleft-client-tools -qy
+	fi
 }
 
 function installSft-Gateway(){
@@ -199,7 +263,11 @@ function installSft-Gateway(){
 	else
 		createSftdConfig
 	fi
-	sudo $PACKAGE_MANAGER install scaleft-gateway
+	if [[ $DISTRIBUTION == "freebsd" ]];then
+		sudo pkg install -y ./scaleft-gateway-$highest_version.pkg
+	else
+		sudo $PACKAGE_MANAGER install scaleft-gateway
+	fi
 }
 
 #main script body below
@@ -207,20 +275,20 @@ function installSft-Gateway(){
 getOsData
 updatePackageManager
 
-if [["$INSTALL_SERVER_TOOLS" == "true"]];then
+if [[ "$INSTALL_SERVER_TOOLS" == "true" ]];then
 	getServerName
 	createSftdConfig
 	createSftdEnrollmentToken
 	installSftd
 fi
 
-if [["$INSTALL_GATEWAY" == "true"]];then
+if [[ "$INSTALL_GATEWAY" == "true" ]];then
 	createSftGatewaySetupToken
 	installSft-Gateway
 	INSTALL_CLIENT_TOOLS="true"
 fi
 
-if [["$INSTALL_CLIENT_TOOLS" == "true"]];then
+if [[ "$INSTALL_CLIENT_TOOLS" == "true" ]];then
 	installSft
 fi
 
