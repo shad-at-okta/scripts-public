@@ -33,65 +33,6 @@ ENVIRONMENT="prod"
 
 # Script functions begin here
 
-function getOptions(){
-	while getopts ":S:sg:cb:h" opt; do
-	case ${opt} in
-		s|S )
-		INSTALL_SERVER_TOOLS=true
-		if [[ "$OPTARG" =~ ^-.* ]]; then
-			# If the next argument is another option, assume no enrollment token was provided
-			((OPTIND--))
-		else
-			SERVER_ENROLLMENT_TOKEN=$OPTARG
-		fi
-		;;
-		g )
-		INSTALL_GATEWAY=true
-		if [[ "$OPTARG" =~ ^-.* ]]; then
-			# If the next argument is another option, assume no gateway token was provided
-			((OPTIND--))
-		else
-			GATEWAY_TOKEN=$OPTARG
-		fi
-		;;
-		c )
-		INSTALL_CLIENT_TOOLS=true
-		;;
-		b )
-		if [ "$OPTARG" == "test" ]; then
-			ENVIRONMENT="test"
-		elif [ "$OPTARG" != "prod" ]; then
-			echo "Invalid argument for -b: $OPTARG. Valid options are 'prod' and 'test'" >&2
-			exit 1
-		fi
-		;;
-		h )
-		echo "Usage: script.sh [-s] [-S server_enrollment_token] [-g GATEWAY_TOKEN] [-c|-b [prod|test]] [-h]"
-		echo "	-s                          Install ASA Server Tools without providing an enrollment token."
-		echo "	-S server_enrollment_token  Install ASA Server Tools with the provided enrollment token."
-		echo "	-g gateway_setup_token      Install ASA Gateway with the provided gateway token."
-		echo "	-c                          Install ASA Client Tools."
-		echo "	-b                          Set installation branch, default is prod."
-		echo "	-h                          Display this help message."
-		exit 0
-		;;
-		\? )
-		echo "Invalid option: -$OPTARG" >&2
-		exit 1
-		;;
-		: )
-		if [ "$OPTARG" == "s" ]; then
-			# The -s option is missing an argument, but it's optional, so just ignore the error
-			continue
-		else
-			echo "Option -$OPTARG requires an argument." >&2
-			exit 1
-		fi      
-		;;
-	esac
-	done
-}
-
 function getVersionInteger(){
 # Check if the cut command is available
 	if which cut >/dev/null 2>&1; then
@@ -366,7 +307,63 @@ function installSft-Gateway(){
 INSTALLED_SOMETHING=false
 
 # Parse command line options for overrides to static variable sets
-getOptions
+while getopts ":S:sg:cb:h" opt; do
+	case ${opt} in
+		s|S )
+			INSTALL_SERVER_TOOLS=true
+			if [[ "$OPTARG" =~ ^-.* ]]; then
+				# If the next argument is another option, assume no enrollment token was provided
+				((OPTIND--))
+			else
+				SERVER_ENROLLMENT_TOKEN=$OPTARG
+			fi
+		;;
+		g )
+			INSTALL_GATEWAY=true
+			if [[ "$OPTARG" =~ ^-.* ]]; then
+				# If the next argument is another option, assume no gateway token was provided
+				((OPTIND--))
+			else
+				GATEWAY_TOKEN=$OPTARG
+			fi
+			;;
+		c )
+			INSTALL_CLIENT_TOOLS=true
+			;;
+		b )
+			if [ "$OPTARG" == "test" ]; then
+				ENVIRONMENT="test"
+			elif [ "$OPTARG" != "prod" ]; then
+				echo "Invalid argument for -b: $OPTARG. Valid options are 'prod' and 'test'" >&2
+				exit 1
+			fi
+			;;
+		h )
+			echo "Usage: script.sh [-s] [-S server_enrollment_token] [-g GATEWAY_TOKEN] [-c|-b [prod|test]] [-h]"
+			echo "	-s                          Install ASA Server Tools without providing an enrollment token."
+			echo "	-S server_enrollment_token  Install ASA Server Tools with the provided enrollment token."
+			echo "	-g gateway_setup_token      Install ASA Gateway with the provided gateway token."
+			echo "	-c                          Install ASA Client Tools."
+			echo "	-b                          Set installation branch, default is prod."
+			echo "	-h                          Display this help message."
+			exit 0
+			;;
+		\? )
+			echo "Invalid option: -$OPTARG" >&2
+			exit 1
+			;;
+		: )
+			if [ "$OPTARG" == "s" ]; then
+				# The -s option is missing an argument, but it's optional, so just ignore the error
+				continue
+			else
+				echo "Option -$OPTARG requires an argument." >&2
+				exit 1
+			fi      
+			;;
+	esac
+done
+
 
 # If something needs to be installed, collect necessary information and update the package manager
 if [[ "$INSTALL_SERVER_TOOLS" == "true" ]] || [[ "$INSTALL_GATEWAY" == "true" ]] || [[ "$INSTALL_CLIENT_TOOLS" == "true" ]];then
