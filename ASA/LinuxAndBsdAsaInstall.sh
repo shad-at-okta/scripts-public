@@ -369,7 +369,7 @@ INSTALLED_SOMETHING=false
 getOptions
 
 # If something needs to be installed, collect necessary information and update the package manager
-if [[ "$INSTALL_SERVER_TOOLS" == "true" ]] || [[ "$INSTALL_GATEWAY" == "true" ]] || [[ "$INSTALL_CLIENT_TOOLS" == "true"]];then
+if [[ "$INSTALL_SERVER_TOOLS" == "true" ]] || [[ "$INSTALL_GATEWAY" == "true" ]] || [[ "$INSTALL_CLIENT_TOOLS" == "true" ]];then
 	getOsData
 	updatePackageManager
 fi
