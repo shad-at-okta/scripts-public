@@ -91,10 +91,10 @@ function getOsData(){
 
 function getServerName(){
 	# Determine the server name that will appear in ASA
-	if curl -s http://169.254.169.254/latest/dynamic/instance-identity/document >/dev/null 2>&1; then
+	if [[ $(curl -s -w "%{http_code}\n" http://169.254.169.254/latest/dynamic/instance-identity/document -o /dev/null) == "200" ]]; then
 		echo "This instance is hosted in AWS, attempting to retrieve Name tag."
 		# Retrieve the instance name tag
-		if curl -s http://169.254.169.254/latest/meta-data/tags/instance/Name >/dev/null 2>&1; then
+		if [[ $(curl -s -w "%{http_code}\n" http://169.254.169.254/latest/meta-data/tags/instance/Name -o /dev/null) == "200" ]]; then
 			echo "Using AWS Name tag for server name in ASA."
 			INSTANCE_NAME=$(curl -s http://169.254.169.254/latest/meta-data/tags/instance/Name)
 		else
