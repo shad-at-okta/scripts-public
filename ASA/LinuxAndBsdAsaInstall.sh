@@ -152,7 +152,7 @@ function updatePackageManager(){
 			# Download and unwrap ASA repo keys
 			curl -fsSL https://dist.scaleft.com/GPG-KEY-OktaPAM-2023 | gpg --dearmor | sudo tee /usr/share/keyrings/oktapam-2023-archive-keyring.gpg > /dev/null
 			# Create apt-get repo config file
-			echo "deb [signed-by=/usr/share/keyrings/oktapam-2023-archive-keyring.gpg] https://dist.scaleft.com/repos/deb $CODENAME okta" | sudo tee /etc/apt/sources.list.d/scaleft.list
+			echo "deb [signed-by=/usr/share/keyrings/oktapam-2023-archive-keyring.gpg] https://dist.scaleft.com/repos/deb $CODENAME okta" | sudo tee /etc/apt/sources.list.d/oktapam-stable.list
 			# Update package manager indexes again
 			sudo $PACKAGE_MANAGER update -qy
 			;;
