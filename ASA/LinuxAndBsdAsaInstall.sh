@@ -302,7 +302,63 @@ function installSft-Gateway(){
 	fi
 }
 
-# Main script body below
+function checkNoProxy() {
+	# Attempt to detect presence of tls-inspecting web proxy
+	# Define your target domain and the expected public key fingerprints (SHA-256)
+	TARGET_DOMAIN="dist.scaleft.com"
+	EXPECTED_SERVER_PUBLIC_KEY_FINGERPRINT="66317c48523d734baa5009499bd110578b00c9b70684c19c0f0c5bfe63c47fd7"
+	EXPECTED_INTERMEDIATE_CA_PUBLIC_KEY_FINGERPRINT="d7cb643f2af69dc92fe1f828d1d84091a52d27686edbcdf5c653b648a86af1d8"
+
+	# Fetch the server's certificate chain
+	CERT_CHAIN=$(openssl s_client -servername "$TARGET_DOMAIN" -connect "$TARGET_DOMAIN:443" -showcerts 2>/dev/null </dev/null)
+
+	# Extract the server certificate
+	SERVER_CERT=$(echo "$CERT_CHAIN" | awk 'BEGIN {cert=0;} /-----BEGIN CERTIFICATE-----/,/-----END CERTIFICATE-----/ {if(cert==0) {print; if($0~/-----END CERTIFICATE-----/) {cert=1;}}}')
+
+	# Extract the server certificate's public key
+	SERVER_PUBLIC_KEY=$(echo "$SERVER_CERT" | openssl x509 -pubkey -noout 2>/dev/null)
+
+	# Calculate the server certificate's public key fingerprint
+	SERVER_PUBLIC_KEY_FINGERPRINT=$(echo "$SERVER_PUBLIC_KEY" | openssl rsa -pubin -outform der 2>/dev/null | openssl dgst -sha256 -hex | awk '{print $2}')
+
+	# Check if the fetched server certificate public key fingerprint matches the expected one
+	if [ ! "$SERVER_PUBLIC_KEY_FINGERPRINT" == "$EXPECTED_SERVER_PUBLIC_KEY_FINGERPRINT" ]; then
+		# Extract the intermediate CA certificate
+		INTERMEDIATE_CA_CERT=$(echo "$CERT_CHAIN" | awk 'BEGIN {c=0;} /-----BEGIN CERTIFICATE-----/ {c++; if(c==2) cert=1; } /-----END CERTIFICATE-----/ {if(cert) {print $0; exit;} else {getline;}} cert {print}')
+
+		# Extract the public key from the intermediate CA certificate
+		INTERMEDIATE_CA_PUBLIC_KEY=$(echo "$INTERMEDIATE_CA_CERT" | openssl x509 -pubkey -noout 2>/dev/null)
+
+		# Calculate the fingerprint of the intermediate CA public key
+		INTERMEDIATE_CA_PUBLIC_KEY_FINGERPRINT=$(echo "$INTERMEDIATE_CA_PUBLIC_KEY" | openssl rsa -pubin -outform der 2>/dev/null | openssl dgst -sha256 -hex | awk '{print $2}')
+
+		# Check if the fetched intermediate CA public key fingerprint matches the expected one
+		if [ ! "$INTERMEDIATE_CA_PUBLIC_KEY_FINGERPRINT" == "$EXPECTED_INTERMEDIATE_CA_PUBLIC_KEY_FINGERPRINT" ]; then
+			echo "$TARGET_DOMAIN public key fingerprint check: FAILED"
+			echo "Intermediate CA public key fingerprint check: FAILED"
+			echo "************** Possible MITM Detected **************"
+			echo "Okta Advanced Server Access uses certificate pinning to prevent MITM attacks."
+			echo "Transparent web proxies that perform TLS inspection replace Okta's certificates"
+			echo "with their own, causing the pinned certificate check to fail.  This will prevent"
+			echo "ASA agents, gateways, and clients from successfully connecting to the ASA platform,"
+			echo "causing enrollment, user & group provisioning, and audit logging to fail."
+			echo "For ASA to function, you'll need to contact your web-proxy administrators and"
+			echo "request the addition of *.scaleft.com, *.okta.com, and *.oktapreview.com to the"
+			echo "tls-inspection bypass list."
+			exit 1
+		else
+			echo "Intermediate CA public fingerprint matches expected value, but the fingerprint check for $TARGET_DOMAIN FAILED."
+		fi
+	else
+		echo "Server and Intermediate public key fingerprint checks PASSED."
+	fi
+
+}
+
+#main script body below
+
+#Verify that there is no web proxy inspecting TLS that will interfere with agent installation and function
+checkNoProxy
 
 INSTALLED_SOMETHING=false
 
@@ -363,7 +419,6 @@ while getopts ":S:sg:cb:h" opt; do
 			;;
 	esac
 done
-
 
 # If something needs to be installed, collect necessary information and update the package manager
 if [[ "$INSTALL_SERVER_TOOLS" == "true" ]] || [[ "$INSTALL_GATEWAY" == "true" ]] || [[ "$INSTALL_CLIENT_TOOLS" == "true" ]];then
