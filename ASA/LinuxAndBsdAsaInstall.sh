@@ -42,9 +42,13 @@ function setRepoUrl (){
 	case ${REPOSITORY} in
 		prod )
 			REPO_URL="https://dist.scaleft.com"
+			REPO_RPM="stable"
+			REPO_DEB="okta"
 			;;
 		test )
 			REPO_URL="https://dist-testing.scaleft.com"
+			REPO_RPM="testing"
+			REPO_DEB="okta-testing"
 			;;
 		* )
 			echo "Invalid repository specified.  Set REPOSITORY to either prod or test."
@@ -146,8 +150,8 @@ function updatePackageManager(){
 			# Create the yum repo artifact for inclusion in the package manager
 			rpm_art=$(cat <<-EOF
 			[oktapam-stable]
-			name=Okta PAM Stable - $DISTRIBUTION $VERSION
-			baseurl=$REPO_URL/repos/rpm/stable/$DISTRIBUTION/$VERSION/$CPU_ARCH
+			name=Okta PAM $REPO_RPM - $DISTRIBUTION $VERSION
+			baseurl=$REPO_URL/repos/rpm/$REPO_RPM/$DISTRIBUTION/$VERSION/$CPU_ARCH
 			gpgcheck=1
 			repo_gpgcheck=1
 			enabled=1
@@ -155,7 +159,7 @@ function updatePackageManager(){
 			EOF
 			)
 			
-			echo -e "$rpm_art" | sudo tee /etc/yum.repos.d/oktapam-stable.repo
+			echo -e "$rpm_art" | sudo tee /etc/yum.repos.d/oktapam-$REPO_RPM.repo
 			
 			# Update package manager indexes
 			sudo $PACKAGE_MANAGER update -qy
@@ -172,7 +176,7 @@ function updatePackageManager(){
 			# Download and unwrap ASA repo keys
 			curl -fsSL $REPO_URL/GPG-KEY-OktaPAM-2023 | gpg --dearmor | sudo tee /usr/share/keyrings/oktapam-2023-archive-keyring.gpg > /dev/null
 			# Create apt-get repo config file
-			echo "deb [signed-by=/usr/share/keyrings/oktapam-2023-archive-keyring.gpg] $REPO_URL/repos/deb $CODENAME okta" | sudo tee /etc/apt/sources.list.d/oktapam-stable.list
+			echo "deb [signed-by=/usr/share/keyrings/oktapam-2023-archive-keyring.gpg] $REPO_URL/repos/deb $CODENAME $REPO_DEB" | sudo tee /etc/apt/sources.list.d/oktapam-$REPO_DEB.list
 			# Update package manager indexes again
 			sudo $PACKAGE_MANAGER update -qy
 			;;
@@ -387,7 +391,7 @@ function checkNoProxy() {
 INSTALLED_SOMETHING=false
 
 # Parse command line options for overrides to static variable sets
-while getopts ":S:sg:crph" opt; do
+while getopts ":S:sg:cr:ph" opt; do
 	case ${opt} in
 		s|S )
 			INSTALL_SERVER_TOOLS=true
@@ -414,7 +418,7 @@ while getopts ":S:sg:crph" opt; do
 			if [ "$OPTARG" == "test" ]; then
 				REPOSITORY="test"
 			elif [ "$OPTARG" != "prod" ]; then
-				echo "Invalid argument for -b: $OPTARG. Valid options are 'prod' and 'test'" >&2
+				echo "Invalid argument for -r: $OPTARG. Valid options are 'prod' and 'test'" >&2
 				exit 1
 			fi
 			;;
@@ -486,7 +490,7 @@ if [[ "$INSTALL_CLIENT_TOOLS" == "true" ]];then
 fi
 
 if [[ "$INSTALLED_SOMETHING" == "false" ]];then
-	echo "No moduled selected for installation, exiting."
+	echo "No module(s) selected for installation, exiting."
 	exit 1
 fi
 exit 0
