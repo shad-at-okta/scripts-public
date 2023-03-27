@@ -29,9 +29,29 @@ GATEWAY_TOKEN=""
 # agents are currently undergoing rapid development and testing and may be unstable.  Not
 # suitable for production deployments!!!
 # To switch to the test branch, change the following value to test:
-ENVIRONMENT="prod"
+REPOSITORY="prod"
+
+# This script uses awk to extract certificate change information necessary to validate there is no
+# TLS inspection web proxy in the egress traffic path.  If awk is unavailable on the local host, disable
+# the check by setting PROXY_CHECK_ENABLED=false below.
+PROXY_CHECK_ENABLED=true
 
 # Script functions begin here
+
+function setRepoUrl (){
+	case ${REPOSITORY} in
+		prod )
+			REPO_URL="https://dist.scaleft.com"
+			;;
+		test )
+			REPO_URL="https://dist-testing.scaleft.com"
+			;;
+		* )
+			echo "Invalid repository specified.  Set REPOSITORY to either prod or test."
+			exit 1
+			;;
+	esac
+}
 
 function getVersionInteger(){
 # Check if the cut command is available
@@ -113,7 +133,7 @@ function getServerName(){
 function updatePackageManager(){
 	# Add Okta ASA/OPA repository to local package manager
 	case "$DISTRIBUTION" in
-		amazonlinux|rhel|centos|alma|fedora)
+		amazonlinux|rhel|centos|alma|fedora )
 			# Set the package manager to dnf if installed, otherwise use yum
 			if which dnf >/dev/null 2>&1;then
 				PACKAGE_MANAGER="dnf"
@@ -122,16 +142,16 @@ function updatePackageManager(){
 			fi
 			# Import ASA repo key 
 			echo "Adding Okta repository to local package manager for Amazon Linux, RHEL, CentOS, Alma, or Fedora"
-			sudo rpm --import https://dist.scaleft.com/GPG-KEY-OktaPAM-2023
+			sudo rpm --import $REPO_URL/GPG-KEY-OktaPAM-2023
 			# Create the yum repo artifact for inclusion in the package manager
 			rpm_art=$(cat <<-EOF
 			[oktapam-stable]
 			name=Okta PAM Stable - $DISTRIBUTION $VERSION
-			baseurl=https://dist.scaleft.com/repos/rpm/stable/$DISTRIBUTION/$VERSION/$CPU_ARCH
+			baseurl=$REPO_URL/repos/rpm/stable/$DISTRIBUTION/$VERSION/$CPU_ARCH
 			gpgcheck=1
 			repo_gpgcheck=1
 			enabled=1
-			gpgkey=https://dist.scaleft.com/GPG-KEY-OktaPAM-2023
+			gpgkey=$REPO_URL/GPG-KEY-OktaPAM-2023
 			EOF
 			)
 			
@@ -141,7 +161,7 @@ function updatePackageManager(){
 			sudo $PACKAGE_MANAGER update -qy
 			
 			;;
-		ubuntu|debian)
+		ubuntu|debian )
 			# Use apt-get as the package manager
 			PACKAGE_MANAGER="apt-get"
 			# Update package manager indexes 
@@ -150,17 +170,17 @@ function updatePackageManager(){
 			# Ensure curl and gpg are installed, as they are needed to add ASA repo keys
 			sudo $PACKAGE_MANAGER install -qy curl gpg
 			# Download and unwrap ASA repo keys
-			curl -fsSL https://dist.scaleft.com/GPG-KEY-OktaPAM-2023 | gpg --dearmor | sudo tee /usr/share/keyrings/oktapam-2023-archive-keyring.gpg > /dev/null
+			curl -fsSL $REPO_URL/GPG-KEY-OktaPAM-2023 | gpg --dearmor | sudo tee /usr/share/keyrings/oktapam-2023-archive-keyring.gpg > /dev/null
 			# Create apt-get repo config file
-			echo "deb [signed-by=/usr/share/keyrings/oktapam-2023-archive-keyring.gpg] https://dist.scaleft.com/repos/deb $CODENAME okta" | sudo tee /etc/apt/sources.list.d/oktapam-stable.list
+			echo "deb [signed-by=/usr/share/keyrings/oktapam-2023-archive-keyring.gpg] $REPO_URL/repos/deb $CODENAME okta" | sudo tee /etc/apt/sources.list.d/oktapam-stable.list
 			# Update package manager indexes again
 			sudo $PACKAGE_MANAGER update -qy
 			;;
 		
-		freebsd)
+		freebsd )
 			# There is currenlty no pkg repo integration, so downloading the packages locally for installation
 
-			pkg_base_url="https://dist.scaleft.com/repos/$DISTRIBUTION/stable/$VERSION/$CPU_ARCH/"
+			pkg_base_url="$REPO_URL/repos/$DISTRIBUTION/stable/$VERSION/$CPU_ARCH/"
 
 			# Use cURL to get the directory listing from the URL
 			response=$(curl -s $pkg_base_url)
@@ -176,7 +196,7 @@ function updatePackageManager(){
 			curl -O "$pkg_base_url/$highest_version/scaleft-client-tools-$highest_version.pkg"
 			curl -O "$pkg_base_url/$highest_version/scaleft-gateway-$highest_version.pkg"
 			;;
-		*)
+		* )
 			echo "Unrecognized OS type: $DISTRIBUTION"
 			exit 1
 			;;
@@ -303,67 +323,71 @@ function installSft-Gateway(){
 }
 
 function checkNoProxy() {
-	# Attempt to detect presence of tls-inspecting web proxy
-	# Define your target domain and the expected public key fingerprints (SHA-256)
-	TARGET_DOMAIN="dist.scaleft.com"
-	EXPECTED_SERVER_PUBLIC_KEY_FINGERPRINT="66317c48523d734baa5009499bd110578b00c9b70684c19c0f0c5bfe63c47fd7"
-	EXPECTED_INTERMEDIATE_CA_PUBLIC_KEY_FINGERPRINT="d7cb643f2af69dc92fe1f828d1d84091a52d27686edbcdf5c653b648a86af1d8"
+	if which awk >/dev/null 2>&1; then
+		# Attempt to detect presence of tls-inspecting web proxy
+		# Define your target domain and the expected public key fingerprints (SHA-256)
+		TARGET_DOMAIN="dist.scaleft.com"
+		EXPECTED_SERVER_PUBLIC_KEY_FINGERPRINT="66317c48523d734baa5009499bd110578b00c9b70684c19c0f0c5bfe63c47fd7"
+		EXPECTED_INTERMEDIATE_CA_PUBLIC_KEY_FINGERPRINT="d7cb643f2af69dc92fe1f828d1d84091a52d27686edbcdf5c653b648a86af1d8"
 
-	# Fetch the server's certificate chain
-	CERT_CHAIN=$(openssl s_client -servername "$TARGET_DOMAIN" -connect "$TARGET_DOMAIN:443" -showcerts 2>/dev/null </dev/null)
+		# Fetch the server's certificate chain
+		CERT_CHAIN=$(openssl s_client -servername "$TARGET_DOMAIN" -connect "$TARGET_DOMAIN:443" -showcerts 2>/dev/null </dev/null)
 
-	# Extract the server certificate
-	SERVER_CERT=$(echo "$CERT_CHAIN" | awk 'BEGIN {cert=0;} /-----BEGIN CERTIFICATE-----/,/-----END CERTIFICATE-----/ {if(cert==0) {print; if($0~/-----END CERTIFICATE-----/) {cert=1;}}}')
+		# Extract the server certificate
+		SERVER_CERT=$(echo "$CERT_CHAIN" | awk 'BEGIN {cert=0;} /-----BEGIN CERTIFICATE-----/,/-----END CERTIFICATE-----/ {if(cert==0) {print; if($0~/-----END CERTIFICATE-----/) {cert=1;}}}')
 
-	# Extract the server certificate's public key
-	SERVER_PUBLIC_KEY=$(echo "$SERVER_CERT" | openssl x509 -pubkey -noout 2>/dev/null)
+		# Extract the server certificate's public key
+		SERVER_PUBLIC_KEY=$(echo "$SERVER_CERT" | openssl x509 -pubkey -noout 2>/dev/null)
 
-	# Calculate the server certificate's public key fingerprint
-	SERVER_PUBLIC_KEY_FINGERPRINT=$(echo "$SERVER_PUBLIC_KEY" | openssl rsa -pubin -outform der 2>/dev/null | openssl dgst -sha256 -hex | awk '{print $2}')
+		# Calculate the server certificate's public key fingerprint
+		SERVER_PUBLIC_KEY_FINGERPRINT=$(echo "$SERVER_PUBLIC_KEY" | openssl rsa -pubin -outform der 2>/dev/null | openssl dgst -sha256 -hex | awk '{print $2}')
 
-	# Check if the fetched server certificate public key fingerprint matches the expected one
-	if [ ! "$SERVER_PUBLIC_KEY_FINGERPRINT" == "$EXPECTED_SERVER_PUBLIC_KEY_FINGERPRINT" ]; then
-		# Extract the intermediate CA certificate
-		INTERMEDIATE_CA_CERT=$(echo "$CERT_CHAIN" | awk 'BEGIN {c=0;} /-----BEGIN CERTIFICATE-----/ {c++; if(c==2) cert=1; } /-----END CERTIFICATE-----/ {if(cert) {print $0; exit;} else {getline;}} cert {print}')
+		# Check if the fetched server certificate public key fingerprint matches the expected one
+		if [ ! "$SERVER_PUBLIC_KEY_FINGERPRINT" == "$EXPECTED_SERVER_PUBLIC_KEY_FINGERPRINT" ]; then
+			# Extract the intermediate CA certificate
+			INTERMEDIATE_CA_CERT=$(echo "$CERT_CHAIN" | awk 'BEGIN {c=0;} /-----BEGIN CERTIFICATE-----/ {c++; if(c==2) cert=1; } /-----END CERTIFICATE-----/ {if(cert) {print $0; exit;} else {getline;}} cert {print}')
 
-		# Extract the public key from the intermediate CA certificate
-		INTERMEDIATE_CA_PUBLIC_KEY=$(echo "$INTERMEDIATE_CA_CERT" | openssl x509 -pubkey -noout 2>/dev/null)
+			# Extract the public key from the intermediate CA certificate
+			INTERMEDIATE_CA_PUBLIC_KEY=$(echo "$INTERMEDIATE_CA_CERT" | openssl x509 -pubkey -noout 2>/dev/null)
 
-		# Calculate the fingerprint of the intermediate CA public key
-		INTERMEDIATE_CA_PUBLIC_KEY_FINGERPRINT=$(echo "$INTERMEDIATE_CA_PUBLIC_KEY" | openssl rsa -pubin -outform der 2>/dev/null | openssl dgst -sha256 -hex | awk '{print $2}')
+			# Calculate the fingerprint of the intermediate CA public key
+			INTERMEDIATE_CA_PUBLIC_KEY_FINGERPRINT=$(echo "$INTERMEDIATE_CA_PUBLIC_KEY" | openssl rsa -pubin -outform der 2>/dev/null | openssl dgst -sha256 -hex | awk '{print $2}')
 
-		# Check if the fetched intermediate CA public key fingerprint matches the expected one
-		if [ ! "$INTERMEDIATE_CA_PUBLIC_KEY_FINGERPRINT" == "$EXPECTED_INTERMEDIATE_CA_PUBLIC_KEY_FINGERPRINT" ]; then
-			echo "$TARGET_DOMAIN public key fingerprint check: FAILED"
-			echo "Intermediate CA public key fingerprint check: FAILED"
-			echo "************** Possible MITM Detected **************"
-			echo "Okta Advanced Server Access uses certificate pinning to prevent MITM attacks."
-			echo "Transparent web proxies that perform TLS inspection replace Okta's certificates"
-			echo "with their own, causing the pinned certificate check to fail.  This will prevent"
-			echo "ASA agents, gateways, and clients from successfully connecting to the ASA platform,"
-			echo "causing enrollment, user & group provisioning, and audit logging to fail."
-			echo "For ASA to function, you'll need to contact your web-proxy administrators and"
-			echo "request the addition of *.scaleft.com, *.okta.com, and *.oktapreview.com to the"
-			echo "tls-inspection bypass list."
-			exit 1
+			# Check if the fetched intermediate CA public key fingerprint matches the expected one
+			if [ ! "$INTERMEDIATE_CA_PUBLIC_KEY_FINGERPRINT" == "$EXPECTED_INTERMEDIATE_CA_PUBLIC_KEY_FINGERPRINT" ]; then
+				echo "$TARGET_DOMAIN public key fingerprint check: FAILED"
+				echo "Intermediate CA public key fingerprint check: FAILED"
+				echo "************** Possible MITM Detected **************"
+				echo "Okta Advanced Server Access uses certificate pinning to prevent MITM attacks."
+				echo "Transparent web proxies that perform TLS inspection replace Okta's certificates"
+				echo "with their own, causing the pinned certificate check to fail.  This will prevent"
+				echo "ASA agents, gateways, and clients from successfully connecting to the ASA platform,"
+				echo "causing enrollment, user & group provisioning, and audit logging to fail."
+				echo "For ASA to function, you'll need to contact your web-proxy administrators and"
+				echo "request the addition of *.scaleft.com, *.okta.com, and *.oktapreview.com to the"
+				echo "tls-inspection bypass list."
+				exit 1
+			else
+				echo "Intermediate CA public fingerprint matches expected value, but the fingerprint check for $TARGET_DOMAIN FAILED."
+			fi
 		else
-			echo "Intermediate CA public fingerprint matches expected value, but the fingerprint check for $TARGET_DOMAIN FAILED."
+			echo "Server and Intermediate public key fingerprint checks PASSED."
 		fi
 	else
-		echo "Server and Intermediate public key fingerprint checks PASSED."
+		echo "awk required to detect presence of TLS inspection web proxy.  To bypass this check, set PROXY_CHECK_ENABLED=false or use the -p command line argument."
+		exit 1
 	fi
-
 }
+
 
 #main script body below
 
 #Verify that there is no web proxy inspecting TLS that will interfere with agent installation and function
-checkNoProxy
 
 INSTALLED_SOMETHING=false
 
 # Parse command line options for overrides to static variable sets
-while getopts ":S:sg:cb:h" opt; do
+while getopts ":S:sg:crph" opt; do
 	case ${opt} in
 		s|S )
 			INSTALL_SERVER_TOOLS=true
@@ -386,21 +410,25 @@ while getopts ":S:sg:cb:h" opt; do
 		c )
 			INSTALL_CLIENT_TOOLS=true
 			;;
-		b )
+		r )
 			if [ "$OPTARG" == "test" ]; then
-				ENVIRONMENT="test"
+				REPOSITORY="test"
 			elif [ "$OPTARG" != "prod" ]; then
 				echo "Invalid argument for -b: $OPTARG. Valid options are 'prod' and 'test'" >&2
 				exit 1
 			fi
 			;;
+		p )
+			PROXY_CHECK_ENABLED=false
+			;;
 		h )
-			echo "Usage: script.sh [-s] [-S server_enrollment_token] [-g GATEWAY_TOKEN] [-c|-b [prod|test]] [-h]"
+			echo "Usage: script.sh [-s] [-S server_enrollment_token] [-g GATEWAY_TOKEN] [-c|-b [prod|test]] [-p] [-h] "
 			echo "	-s                          Install ASA Server Tools without providing an enrollment token."
 			echo "	-S server_enrollment_token  Install ASA Server Tools with the provided enrollment token."
 			echo "	-g gateway_setup_token      Install ASA Gateway with the provided gateway token."
 			echo "	-c                          Install ASA Client Tools."
-			echo "	-b                          Set installation branch, default is prod."
+			echo "	-r                          Set installation branch, default is prod."
+			echo "  -p                          Skip detection of TLS inspection web proxy."
 			echo "	-h                          Display this help message."
 			exit 0
 			;;
@@ -420,8 +448,16 @@ while getopts ":S:sg:cb:h" opt; do
 	esac
 done
 
+if [[ "$PROXY_CHECK_ENABLED" == "true" ]];then
+	checkNoProxy
+else
+	echo "Skipping TLS inspection web proxy check.  Note that the presence of such a proxy will cause"
+	echo "agent enrollment and checkins to fail."
+fi
+
 # If something needs to be installed, collect necessary information and update the package manager
 if [[ "$INSTALL_SERVER_TOOLS" == "true" ]] || [[ "$INSTALL_GATEWAY" == "true" ]] || [[ "$INSTALL_CLIENT_TOOLS" == "true" ]];then
+	setRepoUrl
 	getOsData
 	updatePackageManager
 fi
