@@ -1,4 +1,4 @@
-#!/bin/bash -x
+#!/bin/bash
 
 # For headless installation, key variables are initialized below with the appropriate default values.  
 # Run with script with -h option for command line options
@@ -36,6 +36,14 @@ REPOSITORY="prod"
 # the check by setting PROXY_CHECK_ENABLED=false below.
 PROXY_CHECK_ENABLED=true
 
+# By default, this script will not reinstall the current version of the ASA agents.  Change the below
+# value to "true" to force reinstallation.
+FORCE_REINSTALL=false
+
+# Install arguments will be updated automatically based on the FORCE_REINSTALL flag above.  Do not change
+# the default setting below.
+REPO_INSTALL_ARG="install"
+
 # Script functions begin here
 
 function setRepoUrl (){
@@ -44,11 +52,13 @@ function setRepoUrl (){
 			REPO_URL="https://dist.scaleft.com"
 			REPO_RPM="stable"
 			REPO_DEB="okta"
+			REPO_BSD="stable"
 			;;
 		test )
 			REPO_URL="https://dist-testing.scaleft.com"
 			REPO_RPM="testing"
 			REPO_DEB="okta-testing"
+			REPO_BSD="testing"
 			;;
 		* )
 			echo "Invalid repository specified.  Set REPOSITORY to either prod or test."
@@ -144,6 +154,11 @@ function updatePackageManager(){
 			else
 				PACKAGE_MANAGER="yum"
 			fi
+			#adjust install command if forcing reinstall
+			if [[ "$FORCE_REINSTALL" == "true" ]]; then
+				REPO_INSTALL_ARG = "reinstall"
+			fi
+			
 			# Import ASA repo key 
 			echo "Adding Okta repository to local package manager for Amazon Linux, RHEL, CentOS, Alma, or Fedora"
 			sudo rpm --import $REPO_URL/GPG-KEY-OktaPAM-2023
@@ -159,7 +174,7 @@ function updatePackageManager(){
 			EOF
 			)
 			
-			echo -e "$rpm_art" | sudo tee /etc/yum.repos.d/oktapam-$REPO_RPM.repo
+			echo -e "$rpm_art" | sudo tee /etc/yum.repos.d/oktapam.repo
 			
 			# Update package manager indexes
 			sudo $PACKAGE_MANAGER update -qy
@@ -168,6 +183,10 @@ function updatePackageManager(){
 		ubuntu|debian )
 			# Use apt-get as the package manager
 			PACKAGE_MANAGER="apt-get"
+			#adjust install command if forcing reinstall
+			if [[ "$FORCE_REINSTALL" == "true" ]]; then
+				REPO_INSTALL_ARG = "--reinstall install"
+			fi
 			# Update package manager indexes 
 			echo "Adding Okta repository to local package manager for Ubuntu or Debian"
 			sudo $PACKAGE_MANAGER update -qy
@@ -176,15 +195,18 @@ function updatePackageManager(){
 			# Download and unwrap ASA repo keys
 			curl -fsSL $REPO_URL/GPG-KEY-OktaPAM-2023 | gpg --dearmor | sudo tee /usr/share/keyrings/oktapam-2023-archive-keyring.gpg > /dev/null
 			# Create apt-get repo config file
-			echo "deb [signed-by=/usr/share/keyrings/oktapam-2023-archive-keyring.gpg] $REPO_URL/repos/deb $CODENAME $REPO_DEB" | sudo tee /etc/apt/sources.list.d/oktapam-$REPO_DEB.list
+			echo "deb [signed-by=/usr/share/keyrings/oktapam-2023-archive-keyring.gpg] $REPO_URL/repos/deb $CODENAME $REPO_DEB" | sudo tee /etc/apt/sources.list.d/oktapam.list
 			# Update package manager indexes again
 			sudo $PACKAGE_MANAGER update -qy
 			;;
 		
 		freebsd )
+			#adjust install command if forcing reinstall
+			if [[ "$FORCE_REINSTALL" == "true" ]]; then
+				REPO_INSTALL_ARG = "install -f"
+			fi
 			# There is currenlty no pkg repo integration, so downloading the packages locally for installation
-
-			pkg_base_url="$REPO_URL/repos/$DISTRIBUTION/stable/$VERSION/$CPU_ARCH/"
+			pkg_base_url="$REPO_URL/repos/$DISTRIBUTION/$REPO_BSD/$VERSION/$CPU_ARCH/"
 
 			# Use cURL to get the directory listing from the URL
 			response=$(curl -s $pkg_base_url)
@@ -296,33 +318,33 @@ function createSftGwConfig(){
 function installSftd(){
 	# Install ASA Server tools
 	if [[ $DISTRIBUTION == "freebsd" ]];then
-		sudo pkg install -y ./scaleft-server-tools-$highest_version.pkg
+		sudo pkg $REPO_INSTALL_ARG -y ./scaleft-server-tools-$highest_version.pkg
 	else
-		sudo $PACKAGE_MANAGER install scaleft-server-tools -qy
+		sudo $PACKAGE_MANAGER $REPO_INSTALL_ARG scaleft-server-tools -qy
 	fi
 }
 
 function installSft(){
 	# Install ASA Client tools
 	if [[ $DISTRIBUTION == "freebsd" ]];then
-		sudo pkg install -y ./scaleft-client-tools-$highest_version.pkg
+		sudo pkg $REPO_INSTALL_ARG -y ./scaleft-client-tools-$highest_version.pkg
 	else
-		sudo $PACKAGE_MANAGER install scaleft-client-tools -qy
+		sudo $PACKAGE_MANAGER $REPO_INSTALL_ARG scaleft-client-tools -qy
 	fi
 }
 
 function installSft-Gateway(){
 	# Install ASA Gateway
 	if [[ "$DISTRIBUTION" == "rhel" && "$VERSION" == "8" ]] || [[ "$DISTRIBUTION" == "ubuntu" && ( "$VERSION" == "20.04" || "$VERSION" == "22.04" ) ]]; then
-		sudo $PACKAGE_MANAGER install scaleft-rdp-transcoder
+		sudo $PACKAGE_MANAGER $REPO_INSTALL_ARG scaleft-rdp-transcoder
 		createSftGwConfigRDP
 	else
 		createSftdConfig
 	fi
 	if [[ $DISTRIBUTION == "freebsd" ]];then
-		sudo pkg install -y ./scaleft-gateway-$highest_version.pkg
+		sudo pkg $REPO_INSTALL_ARG -y ./scaleft-gateway-$highest_version.pkg
 	else
-		sudo $PACKAGE_MANAGER install scaleft-gateway
+		sudo $PACKAGE_MANAGER $REPO_INSTALL_ARG scaleft-gateway
 	fi
 }
 
@@ -391,7 +413,7 @@ function checkNoProxy() {
 INSTALLED_SOMETHING=false
 
 # Parse command line options for overrides to static variable sets
-while getopts ":S:sg:cr:ph" opt; do
+while getopts ":S:sg:cr:phf" opt; do
 	case ${opt} in
 		s|S )
 			INSTALL_SERVER_TOOLS=true
@@ -402,6 +424,9 @@ while getopts ":S:sg:cr:ph" opt; do
 				SERVER_ENROLLMENT_TOKEN=$OPTARG
 			fi
 		;;
+		f )
+			FORCE_REINSTALL=true
+			;;
 		g )
 			INSTALL_GATEWAY=true
 			if [[ "$OPTARG" =~ ^-.* ]]; then
@@ -429,6 +454,7 @@ while getopts ":S:sg:cr:ph" opt; do
 			echo "Usage: script.sh [-s] [-S server_enrollment_token] [-g GATEWAY_TOKEN] [-c|-b [prod|test]] [-p] [-h] "
 			echo "	-s                          Install ASA Server Tools without providing an enrollment token."
 			echo "	-S server_enrollment_token  Install ASA Server Tools with the provided enrollment token."
+			echo "  -f                          Force re-installation of existing packages."
 			echo "	-g gateway_setup_token      Install ASA Gateway with the provided gateway token."
 			echo "	-c                          Install ASA Client Tools."
 			echo "	-r                          Set installation branch, default is prod."
