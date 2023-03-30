@@ -156,7 +156,7 @@ function updatePackageManager(){
 			fi
 			#adjust install command if forcing reinstall
 			if [[ "$FORCE_REINSTALL" == "true" ]]; then
-				REPO_INSTALL_ARG = "reinstall"
+				REPO_INSTALL_ARG="reinstall"
 			fi
 			
 			# Import ASA repo key 
@@ -185,7 +185,7 @@ function updatePackageManager(){
 			PACKAGE_MANAGER="apt-get"
 			#adjust install command if forcing reinstall
 			if [[ "$FORCE_REINSTALL" == "true" ]]; then
-				REPO_INSTALL_ARG = "--reinstall install"
+				REPO_INSTALL_ARG="install --reinstall"
 			fi
 			# Update package manager indexes 
 			echo "Adding Okta repository to local package manager for Ubuntu or Debian"
@@ -203,7 +203,7 @@ function updatePackageManager(){
 		freebsd )
 			#adjust install command if forcing reinstall
 			if [[ "$FORCE_REINSTALL" == "true" ]]; then
-				REPO_INSTALL_ARG = "install -f"
+				REPO_INSTALL_ARG="install -f"
 			fi
 			# There is currenlty no pkg repo integration, so downloading the packages locally for installation
 			pkg_base_url="$REPO_URL/repos/$DISTRIBUTION/$REPO_BSD/$VERSION/$CPU_ARCH/"
