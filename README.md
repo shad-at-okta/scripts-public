@@ -4,7 +4,7 @@ Scripts and tools published here are intended as examples only, to be used only 
 
 ASA Gateway install scripts include the gateway, server agent, and sft client.
 
-ASA Gateway only support RDP when installed on Ubuntu 20.04 LTS.  Gateways installed on other OS's will support SSH only.
+ASA Gateway only supports RDP when installed on Ubuntu 20.04 LTS.  Gateways installed on other OS's will support SSH only.
 
 
 
